@@ -1,5 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.db.session import engine
+from app.db import models
+
+models.Base.metadata.create_all(bind=engine) # Crea las tablas en la base de datos
 
 app = FastAPI(
     title="GIA",
