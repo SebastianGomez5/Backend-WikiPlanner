@@ -14,7 +14,7 @@ class TaskBase(BaseModel):
     deadline: Optional[datetime] = None
 
 class TaskCreate(TaskBase):
-    user_id: UUID
+    pass
 
 class TaskResponse(TaskBase):
     id: UUID

@@ -4,6 +4,7 @@ from app.db.session import engine
 from app.db import models
 from app.api.endpoints import tasks
 from app.api.endpoints import users
+from app.api.endpoints import auth
 
 models.Base.metadata.create_all(bind=engine) # Crea las tablas en la base de datos
 
@@ -22,6 +23,7 @@ app.add_middleware(
     allow_headers=["*"],  # Permite cualquier tipo de encabezado de seguridad.
 )
 
+app.include_router(auth.router, prefix="/api/auth", tags=["Autenticación"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["Tareas"])
 app.include_router(users.router, prefix="/api/users", tags=["Usuarios"])
 
