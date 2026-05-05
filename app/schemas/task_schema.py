@@ -12,6 +12,8 @@ class TaskBase(BaseModel):
     energy_level: Optional[str] = None
     is_flexible: bool = True
     deadline: Optional[datetime] = None
+    fixed_start_time: Optional[datetime] = None
+    preferred_time_of_day: Optional[str] = "Cualquier"
 
 class TaskCreate(TaskBase):
     pass

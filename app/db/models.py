@@ -16,12 +16,10 @@ class User(Base):
     google_refresh_token = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-
     settings = relationship("UserSettings", back_populates="user", uselist=False)
     tasks = relationship("Task", back_populates="user")
     time_blocks = relationship("TimeBlock", back_populates="user")
     decision_history = relationship("DecisionHistory", back_populates="user")
-
 
 class UserSettings(Base):
     __tablename__ = "user_settings"
@@ -35,7 +33,6 @@ class UserSettings(Base):
 
     user = relationship("User", back_populates="settings")
 
-
 class Task(Base):
     __tablename__ = "tasks"
 
@@ -47,13 +44,17 @@ class Task(Base):
     difficulty_level = Column(String, nullable=True)
     category = Column(String, nullable=True)
     energy_level = Column(String, nullable=True)
+    
     is_flexible = Column(Boolean, default=True)
     deadline = Column(DateTime, nullable=True)
+    fixed_start_time = Column(DateTime, nullable=True) 
+    
+    preferred_time_of_day = Column(String, default="Cualquier")
+    
     status = Column(String, default="Pendiente")
 
     user = relationship("User", back_populates="tasks")
     time_blocks = relationship("TimeBlock", back_populates="task")
-
 
 class TimeBlock(Base):
     __tablename__ = "time_blocks"
@@ -68,7 +69,6 @@ class TimeBlock(Base):
 
     user = relationship("User", back_populates="time_blocks")
     task = relationship("Task", back_populates="time_blocks")
-
 
 class DecisionHistory(Base):
     __tablename__ = "decision_history"

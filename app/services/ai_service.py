@@ -1,12 +1,10 @@
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, datetime, time
 from uuid import UUID
 from app.db import models
 from app.ai_engine.csp_solver import CSPSolver
 from app.schemas.time_block_schema import TimeBlockCreate
 from app.services import time_block_service, user_settings_service
-
-# IMPORTACIÓN NUEVA: Traemos nuestra función para hablar con Google
 from app.services.google_calendar_service import create_google_event
 
 def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
@@ -14,6 +12,26 @@ def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
     if not settings:
         raise ValueError("El usuario no tiene preferencias configuradas. Por favor, configúralas primero.")
 
+    # 1. LIMPIEZA DE AGENDA: Borramos el itinerario de hoy para evitar solapamientos
+    start_of_day = datetime.combine(target_date, time.min)
+    end_of_day = datetime.combine(target_date, time.max)
+    
+    old_blocks = db.query(models.TimeBlock).filter(
+        models.TimeBlock.user_id == user_id,
+        models.TimeBlock.start_time >= start_of_day,
+        models.TimeBlock.start_time <= end_of_day
+    ).all()
+    
+    for block in old_blocks:
+        task = db.query(models.Task).filter(models.Task.id == block.task_id).first()
+        # Si la tarea ya estaba agendada, la devolvemos a Pendiente para reprogramarla
+        if task and task.status == "Agendada":
+            task.status = "Pendiente"
+        db.delete(block)
+    
+    db.commit() # Guardamos la limpieza
+
+    # 2. Buscamos todas las tareas pendientes
     tasks = db.query(models.Task).filter(
         models.Task.user_id == user_id,
         models.Task.status == "Pendiente"
@@ -22,6 +40,7 @@ def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
     if not tasks:
         return {"mensaje": "No hay tareas pendientes para agendar en este momento."}
 
+    # 3. Llamamos al motor CSP
     solver = CSPSolver(tasks=tasks, user_settings=settings, target_date=target_date)
     best_schedule = solver.solve()
 
@@ -30,20 +49,14 @@ def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
 
     created_blocks = []
     for task_id, (start_time, end_time) in best_schedule.items():
-        
-        # 1. Buscamos la tarea para saber su nombre (Google lo necesita para el título)
         db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
-        
-        # 2. LLAMAMOS A GOOGLE CALENDAR (La magia sucede aquí)
-        # Esto va a crear el evento real y nos devolverá el ID que Google le asigne.
         g_event_id = create_google_event(db_task.title, start_time, end_time)
         
-        # 3. Armamos el bloque de tiempo, inyectándole el ID de Google
         block_data = TimeBlockCreate(
             task_id=task_id,
             start_time=start_time,
             end_time=end_time,
-            google_event_id=g_event_id, # Ahora esto ya no será null
+            google_event_id=g_event_id,
             is_locked=False
         )
         
