@@ -5,6 +5,7 @@ from uuid import UUID
 
 class TaskSimpleInfo(BaseModel):
     title: str
+    status: str
     
     model_config = ConfigDict(from_attributes=True)
 

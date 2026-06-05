@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.schemas import task_schema
 from app.services import task_service
 from app.db.session import get_db
+from typing import List
 
 from app.api import deps
 from app.db import models
@@ -16,3 +17,10 @@ def create_task(
 ):
     
     return task_service.create_task(db=db, task=task, user_id=current_user.id)
+
+@router.get("/pending", response_model=List[task_schema.TaskResponse])
+def get_pending_tasks(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    return task_service.get_pending_tasks(db=db, user_id=current_user.id)

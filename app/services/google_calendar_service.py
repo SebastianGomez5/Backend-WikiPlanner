@@ -55,3 +55,22 @@ def create_google_event(task_title, start_time, end_time):
     except HttpError as error:
         print(f'Ocurrió un error con la API de Google: {error}')
         return None
+
+def delete_google_event(event_id: str):
+    """
+    Elimina un evento específico de Google Calendar usando su ID.
+    Esta función es vital para no duplicar eventos al regenerar la agenda.
+    """
+    if not event_id:
+        return False
+        
+    try:
+        service = get_calendar_service()
+        
+        # 'primary' indica que es el calendario principal del usuario
+        service.events().delete(calendarId='primary', eventId=event_id).execute()
+        print(f"Evento {event_id} eliminado de Google Calendar exitosamente.")
+        return True
+    except Exception as e:
+        print(f"Error al eliminar el evento de Google Calendar: {e}")
+        return False
