@@ -1,6 +1,7 @@
 import time
 from datetime import datetime, timedelta
 from app.ai_engine.scoring import calculate_slot_penalty
+from app.ai_engine.learning import build_user_penalty_profile
 
 class CSPSolver:
     def __init__(self, tasks, user_settings, target_date, rejected_decisions=None):
@@ -15,8 +16,10 @@ class CSPSolver:
         self.day_end = datetime.combine(self.target_date, work_end)
         
         self.best_schedule = {}
-        # Guardamos la memoria de rechazos de la IA
+
         self.rejected_decisions = rejected_decisions or []
+
+        self.user_profile = build_user_penalty_profile(self.rejected_decisions)
 
     def solve(self):
         # Ordenamos: Fijos primero, luego más prioritarios, luego más largos
@@ -105,13 +108,13 @@ class CSPSolver:
             if deadline_clean and (current_time + duration) > deadline_clean:
                 break 
                 
-            penalty = calculate_slot_penalty(task, current_time)
+            penalty = calculate_slot_penalty(task, current_time, self.user_profile)
             slots_with_scores.append({
                 "start": current_time,
                 "end": current_time + duration,
                 "penalty": penalty
             })
             current_time += timedelta(minutes=15)
-            
+
         slots_with_scores.sort(key=lambda x: x["penalty"])
         return [(slot["start"], slot["end"]) for slot in slots_with_scores]
