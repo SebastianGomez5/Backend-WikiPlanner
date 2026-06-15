@@ -21,14 +21,51 @@ class CSPSolver:
 
         self.user_profile = build_user_penalty_profile(self.rejected_decisions)
 
+        self.unscheduled_tasks = []
+
     def solve(self):
-        # Ordenamos: Fijos primero, luego más prioritarios, luego más largos
         self.tasks.sort(key=lambda t: (t.is_flexible, -t.priority, -t.duration_minutes))
         schedule = {}
         
         self._backtrack(0, schedule)
-        return schedule
+        self.unscheduled_tasks = []
+        for task in self.tasks:
+            if task.id not in schedule:
+                reason = self._diagnose_unscheduled(task)
+                self.unscheduled_tasks.append({
+                    "task_id": str(task.id),
+                    "title": task.title,
+                    "reason": reason
+                })
 
+        return schedule
+    def _diagnose_unscheduled(self, task):
+        """
+        Determina POR QUÉ una tarea no pudo agendarse.
+        Esto le da transparencia a la IA: no solo dice "no cupo",
+        sino que explica la causa raíz.
+        """
+
+        possible_slots = self._get_possible_slots(task)
+
+        if not possible_slots:
+
+            if task.deadline:
+                return (
+                    "El plazo límite (deadline) de esta tarea, combinado con tu "
+                    "horario preferido, no deja ninguna franja disponible."
+                )
+            if task.preferred_time_of_day and task.preferred_time_of_day != "Cualquier":
+                return (
+                    f"Tu preferencia de horario '{task.preferred_time_of_day}' "
+                    "no coincide con tu jornada laboral configurada."
+                )
+            return "No hay franjas horarias disponibles dentro de tu jornada laboral."
+
+        return (
+            "Tu día ya está lleno con otras tareas de mayor prioridad. "
+            "No quedó espacio disponible para esta tarea."
+        )
     def _backtrack(self, task_index, current_schedule):
         if task_index == len(self.tasks):
             return True 
@@ -45,7 +82,6 @@ class CSPSolver:
                     
                 del current_schedule[task.id] 
 
-        # Si la tarea no cupo en ningún lado, la saltamos y seguimos con la siguiente
         return self._backtrack(task_index + 1, current_schedule)
 
     def _is_valid(self, start, end, current_schedule):
@@ -66,7 +102,6 @@ class CSPSolver:
         current_time = self.day_start
         duration = timedelta(minutes=task.duration_minutes)
 
-        # Extraemos a qué horas EXACTAS rechazó el usuario esta tarea en el pasado
         rejected_hours = []
         for d in self.rejected_decisions:
             if str(d.conflict_context.get("task_id")) == str(task.id):
@@ -78,7 +113,6 @@ class CSPSolver:
                     except:
                         pass
 
-        # Flexibilización inteligente del deadline si es para "hoy"
         deadline_clean = None
         if task.deadline:
             deadline_clean = task.deadline.replace(tzinfo=None)
@@ -88,7 +122,6 @@ class CSPSolver:
         while current_time + duration <= self.day_end:
             hora = current_time.hour
             
-            # EL APRENDIZAJE: Si el usuario rechazó esta hora, la IA la descarta de inmediato
             if hora in rejected_hours:
                 current_time += timedelta(minutes=15)
                 continue
@@ -104,7 +137,6 @@ class CSPSolver:
                 current_time += timedelta(minutes=15)
                 continue
 
-            # Verificamos si este hueco rompe el deadline flexibilizado
             if deadline_clean and (current_time + duration) > deadline_clean:
                 break 
                 

@@ -94,7 +94,13 @@ def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
     
     db.commit()
 
+    mensaje = "Agenda generada y sincronizada con Google Calendar exitosamente."
+    if solver.unscheduled_tasks:
+        nombres = ", ".join(t["title"] for t in solver.unscheduled_tasks)
+        mensaje += f" Sin embargo, {len(solver.unscheduled_tasks)} tarea(s) no pudieron agendarse: {nombres}."
+
     return {
-        "mensaje": "Agenda generada y sincronizada con Google Calendar exitosamente.",
-        "tareas_agendadas": len(best_schedule)
+        "mensaje": mensaje,
+        "tareas_agendadas": len(best_schedule),
+        "tareas_no_agendadas": solver.unscheduled_tasks  # NUEVO — lista con título + razón
     }
