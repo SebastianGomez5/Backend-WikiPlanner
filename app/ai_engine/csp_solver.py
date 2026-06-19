@@ -1,6 +1,6 @@
 import time
 from datetime import datetime, timedelta
-from app.ai_engine.scoring import calculate_slot_penalty
+from app.ai_engine.scoring import calculate_slot_penalty, calculate_confidence
 from app.ai_engine.learning import build_user_penalty_profile
 
 class CSPSolver:
@@ -22,12 +22,14 @@ class CSPSolver:
         self.user_profile = build_user_penalty_profile(self.rejected_decisions)
 
         self.unscheduled_tasks = []
+        self.confidence_scores = {}
 
     def solve(self):
         self.tasks.sort(key=lambda t: (t.is_flexible, -t.priority, -t.duration_minutes))
         schedule = {}
-        
+
         self._backtrack(0, schedule)
+
         self.unscheduled_tasks = []
         for task in self.tasks:
             if task.id not in schedule:
@@ -38,7 +40,16 @@ class CSPSolver:
                     "reason": reason
                 })
 
+        # NUEVO — Calculamos la confianza de cada asignación realizada
+        self.confidence_scores = {}
+        tasks_by_id = {t.id: t for t in self.tasks}
+        for task_id, (slot_start, _slot_end) in schedule.items():
+            task = tasks_by_id[task_id]
+            penalty = calculate_slot_penalty(task, slot_start, self.user_profile)
+            self.confidence_scores[task_id] = calculate_confidence(penalty)
+
         return schedule
+        
     def _diagnose_unscheduled(self, task):
         """
         Determina POR QUÉ una tarea no pudo agendarse.

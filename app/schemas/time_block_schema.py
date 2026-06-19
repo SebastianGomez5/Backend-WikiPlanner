@@ -14,6 +14,7 @@ class TimeBlockBase(BaseModel):
     end_time: datetime
     google_event_id: Optional[str] = None
     is_locked: bool = False
+    ai_confidence: Optional[float] = None
 
 class TimeBlockCreate(TimeBlockBase):
     task_id: UUID
@@ -22,7 +23,6 @@ class TimeBlockResponse(TimeBlockBase):
     id: UUID
     task_id: UUID
     user_id: UUID
-    
     task: TaskSimpleInfo 
 
     model_config = ConfigDict(from_attributes=True)
