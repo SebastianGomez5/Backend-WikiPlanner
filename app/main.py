@@ -9,6 +9,7 @@ from app.api.endpoints import user_settings
 from app.api.endpoints import time_blocks
 from app.api.endpoints import ai
 from app.api.endpoints import decisions
+from app.api.endpoints import kpi
 
 models.Base.metadata.create_all(bind=engine) # Crea las tablas en la base de datos
 
@@ -34,6 +35,7 @@ app.include_router(user_settings.router, prefix="/api/settings", tags=["Preferen
 app.include_router(time_blocks.router, prefix="/api/time-blocks", tags=["Bloques de Tiempo"])
 app.include_router(ai.router, prefix="/api/ai", tags=["Inteligencia Artificial"])
 app.include_router(decisions.router, prefix="/api/decisions", tags=["Historial de Decisiones"])
+app.include_router(kpi.router, prefix="/api/kpi", tags=["KPIs"])
 
 # 3. Ruta de prueba o "Health Check"
 @app.get("/")
