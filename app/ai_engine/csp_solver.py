@@ -41,7 +41,6 @@ class CSPSolver:
                     "reason": reason
                 })
 
-        # NUEVO — Calculamos la confianza de cada asignación realizada
         self.confidence_scores = {}
         tasks_by_id = {t.id: t for t in self.tasks}
         for task_id, (slot_start, _slot_end) in schedule.items():
