@@ -56,25 +56,40 @@ class CSPSolver:
         Esto le da transparencia a la IA: no solo dice "no cupo",
         sino que explica la causa raíz.
         """
+        now = datetime.now()
+        is_today = (self.target_date == now.date())
+
+        if not task.is_flexible and task.fixed_start_time:
+            start = task.fixed_start_time.replace(tzinfo=None)
+            if is_today and start < now:
+                return "La hora fija asignada a este evento ya pasó el día de hoy."
 
         possible_slots = self._get_possible_slots(task)
 
         if not possible_slots:
+            if is_today:
+                now_hour = now.hour
+                if task.preferred_time_of_day == "Mañana" and now_hour >= 12:
+                    return "El lapso de la 'Mañana' ya terminó hoy. Elige 'Tarde', 'Noche' o 'Cualquier'."
+                if task.preferred_time_of_day == "Tarde" and now_hour >= 18:
+                    return "El lapso de la 'Tarde' ya terminó hoy. Elige 'Noche' o 'Cualquier'."
+                if now >= self.day_end:
+                    return "Tu jornada laboral configurada para hoy ya ha finalizado."
 
             if task.deadline:
                 return (
                     "El plazo límite (deadline) de esta tarea, combinado con tu "
-                    "horario preferido, no deja ninguna franja disponible."
+                    "horario preferido o el tiempo restante disponible, no deja ninguna franja."
                 )
             if task.preferred_time_of_day and task.preferred_time_of_day != "Cualquier":
                 return (
                     f"Tu preferencia de horario '{task.preferred_time_of_day}' "
-                    "no coincide con tu jornada laboral configurada."
+                    "no coincide con las horas que quedan disponibles en tu jornada laboral."
                 )
-            return "No hay franjas horarias disponibles dentro de tu jornada laboral."
+            return "No quedan franjas horarias disponibles dentro de tu jornada laboral restante para hoy."
 
         return (
-            "Tu día ya está lleno con otras tareas de mayor prioridad. "
+            "Tu día ya está lleno con otras tareas de mayor prioridad o eventos externos. "
             "No quedó espacio disponible para esta tarea."
         )
     def _backtrack(self, task_index, current_schedule):
@@ -108,15 +123,34 @@ class CSPSolver:
         return True
 
     def _get_possible_slots(self, task):
+        now = datetime.now()
+        is_today = (self.target_date == now.date())
+
+        # Si la fecha objetivo ya pasó en días anteriores, no hay slots
+        if self.target_date < now.date():
+            return []
+
         # 1. CASO EVENTO FIJO
         if not task.is_flexible and task.fixed_start_time:
             start = task.fixed_start_time.replace(tzinfo=None)
             end = start + timedelta(minutes=task.duration_minutes)
+            # Si el evento fijo ya pasó el día de hoy, no se puede agendar
+            if is_today and start < now:
+                return []
             return [(start, end)]
 
         # 2. CASO TAREA FLEXIBLE
         slots_with_scores = []
-        current_time = self.day_start
+        
+        # Si es hoy, la hora de inicio nunca puede ser una hora del pasado
+        if is_today:
+            # Redondear al siguiente cuarto de hora para dar margen de inicio
+            minute_rounded = ((now.minute // 15) + 1) * 15
+            now_slot = now.replace(minute=0, second=0, microsecond=0) + timedelta(minutes=minute_rounded)
+            current_time = max(self.day_start, now_slot)
+        else:
+            current_time = self.day_start
+
         duration = timedelta(minutes=task.duration_minutes)
 
         rejected_hours = []
