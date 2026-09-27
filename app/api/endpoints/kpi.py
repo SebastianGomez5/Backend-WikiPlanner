@@ -118,3 +118,108 @@ def get_kpi_dashboard(
         },
         "tendencia_semanal": weekly_trend
     }
+
+
+@router.get("/balance")
+def get_balance_stats(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    """
+    Retorna el balance Ocio/Productividad de la semana actual.
+    Agrupa los minutos de time_blocks completados o agendados por categoría de tarea.
+    """
+    user_id = current_user.id
+
+    # Semana actual: desde el lunes hasta hoy
+    today = datetime.utcnow()
+    week_start = today - timedelta(days=today.weekday())
+    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # JOIN time_blocks → tasks, filtrando por la semana actual
+    blocks = (
+        db.query(models.TimeBlock, models.Task)
+        .join(models.Task, models.TimeBlock.task_id == models.Task.id)
+        .filter(
+            models.TimeBlock.user_id == user_id,
+            models.TimeBlock.start_time >= week_start,
+            models.TimeBlock.start_time <= today,
+        )
+        .all()
+    )
+
+    # Acumular minutos por categoría
+    CATEGORIAS = ["Trabajo", "Estudio", "Salud", "Hogar", "Ocio"]
+    minutos_por_categoria = {cat: 0 for cat in CATEGORIAS}
+
+    for block, task in blocks:
+        cat = task.category if task.category in CATEGORIAS else "Trabajo"
+        duracion = int((block.end_time - block.start_time).total_seconds() / 60)
+        minutos_por_categoria[cat] += duracion
+
+    total_minutos = sum(minutos_por_categoria.values())
+
+    # Calcular porcentajes
+    porcentajes = {}
+    for cat, mins in minutos_por_categoria.items():
+        porcentajes[cat] = round((mins / total_minutos * 100), 1) if total_minutos > 0 else 0
+
+    # ── Clasificar en Productividad vs Ocio ─────────────────────────────
+    PRODUCTIVIDAD = ["Trabajo", "Estudio"]
+    BIENESTAR     = ["Salud", "Hogar"]
+    OCIO_CATS     = ["Ocio"]
+
+    pct_productividad = sum(porcentajes[c] for c in PRODUCTIVIDAD)
+    pct_bienestar     = sum(porcentajes[c] for c in BIENESTAR)
+    pct_ocio          = sum(porcentajes[c] for c in OCIO_CATS)
+
+    # ── Generar mensaje de recomendación ────────────────────────────────
+    if total_minutos == 0:
+        mensaje = "Aún no tienes actividades completadas esta semana. ¡Genera tu agenda y comienza!"
+        estado = "sin_datos"
+    elif pct_productividad >= 85:
+        mensaje = (
+            f"Esta semana dedicaste {pct_productividad:.0f}% a Trabajo/Estudio y solo "
+            f"{pct_ocio:.0f}% a Ocio. Considera agendar más tiempo de descanso para evitar el agotamiento."
+        )
+        estado = "desequilibrio_productividad"
+    elif pct_ocio >= 50:
+        mensaje = (
+            f"Esta semana dedicaste {pct_ocio:.0f}% a Ocio. "
+            f"¿Hay tareas pendientes importantes que puedas priorizar?"
+        )
+        estado = "desequilibrio_ocio"
+    elif 60 <= pct_productividad <= 80 and pct_ocio >= 10:
+        mensaje = (
+            f"¡Buen balance esta semana! {pct_productividad:.0f}% productivo y "
+            f"{pct_ocio:.0f}% de descanso. Sigue así."
+        )
+        estado = "equilibrado"
+    else:
+        mensaje = (
+            f"Esta semana: {pct_productividad:.0f}% en Trabajo/Estudio, "
+            f"{pct_bienestar:.0f}% en Salud/Hogar y {pct_ocio:.0f}% en Ocio."
+        )
+        estado = "neutral"
+
+    return {
+        "semana_inicio": week_start.strftime("%Y-%m-%d"),
+        "total_minutos_agendados": total_minutos,
+        "total_horas_agendadas": round(total_minutos / 60, 1),
+        "por_categoria": [
+            {
+                "categoria": cat,
+                "minutos": minutos_por_categoria[cat],
+                "horas": round(minutos_por_categoria[cat] / 60, 1),
+                "porcentaje": porcentajes[cat],
+            }
+            for cat in CATEGORIAS
+        ],
+        "resumen_grupos": {
+            "productividad": round(pct_productividad, 1),
+            "bienestar": round(pct_bienestar, 1),
+            "ocio": round(pct_ocio, 1),
+        },
+        "mensaje": mensaje,
+        "estado": estado,   # sin_datos | equilibrado | desequilibrio_productividad | desequilibrio_ocio | neutral
+    }
