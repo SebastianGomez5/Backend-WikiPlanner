@@ -15,6 +15,7 @@ class TimeBlockBase(BaseModel):
     google_event_id: Optional[str] = None
     is_locked: bool = False
     ai_confidence: Optional[float] = None
+    ai_explanation: Optional[str] = None
 
 class TimeBlockCreate(TimeBlockBase):
     task_id: UUID

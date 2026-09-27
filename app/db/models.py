@@ -68,6 +68,7 @@ class TimeBlock(Base):
     google_event_id = Column(String, nullable=True)
     is_locked = Column(Boolean, default=False)
     ai_confidence = Column(Float, nullable=True)
+    ai_explanation = Column(String, nullable=True)
 
     user = relationship("User", back_populates="time_blocks")
     task = relationship("Task", back_populates="time_blocks")

@@ -95,7 +95,8 @@ def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
             end_time=end_time,
             google_event_id=g_event_id,
             is_locked=False,
-            ai_confidence=solver.confidence_scores.get(task_id)  # NUEVO
+            ai_confidence=solver.confidence_scores.get(task_id),
+            ai_explanation=solver.explanations.get(task_id)  # NUEVO: XAI
         )
         
         db_block = time_block_service.create_time_block(db, block=block_data, user_id=user_id)

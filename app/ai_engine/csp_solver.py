@@ -1,6 +1,6 @@
 import time
 from datetime import datetime, timedelta
-from app.ai_engine.scoring import calculate_slot_penalty, calculate_confidence
+from app.ai_engine.scoring import calculate_slot_penalty, calculate_slot_penalty_with_reasons, calculate_confidence, generate_explanation
 from app.ai_engine.learning import build_user_penalty_profile
 
 class CSPSolver:
@@ -23,6 +23,7 @@ class CSPSolver:
 
         self.unscheduled_tasks = []
         self.confidence_scores = {}
+        self.explanations = {}
         self.external_events = external_events or []
 
     def solve(self):
@@ -43,11 +44,14 @@ class CSPSolver:
                 })
 
         self.confidence_scores = {}
+        self.explanations = {}
         tasks_by_id = {t.id: t for t in self.tasks}
         for task_id, (slot_start, _slot_end) in schedule.items():
             task = tasks_by_id[task_id]
-            penalty = calculate_slot_penalty(task, slot_start, self.user_profile)
-            self.confidence_scores[task_id] = calculate_confidence(penalty)
+            penalty, reasons = calculate_slot_penalty_with_reasons(task, slot_start, self.user_profile)
+            conf = calculate_confidence(penalty)
+            self.confidence_scores[task_id] = conf
+            self.explanations[task_id] = generate_explanation(task, slot_start, penalty, reasons, conf)
 
         return schedule
         
