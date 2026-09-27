@@ -34,11 +34,12 @@ class CSPSolver:
         self.unscheduled_tasks = []
         for task in self.tasks:
             if task.id not in schedule:
-                reason = self._diagnose_unscheduled(task)
+                reason, suggestion = self._diagnose_unscheduled(task)
                 self.unscheduled_tasks.append({
                     "task_id": str(task.id),
                     "title": task.title,
-                    "reason": reason
+                    "reason": reason,
+                    "suggestion": suggestion
                 })
 
         self.confidence_scores = {}
@@ -52,9 +53,8 @@ class CSPSolver:
         
     def _diagnose_unscheduled(self, task):
         """
-        Determina POR QUÉ una tarea no pudo agendarse.
-        Esto le da transparencia a la IA: no solo dice "no cupo",
-        sino que explica la causa raíz.
+        Determina POR QUÉ una tarea no pudo agendarse y qué SUGERENCIA
+        práctica puede seguir el usuario para resolverlo.
         """
         now = datetime.now()
         is_today = (self.target_date == now.date())
@@ -62,35 +62,50 @@ class CSPSolver:
         if not task.is_flexible and task.fixed_start_time:
             start = task.fixed_start_time.replace(tzinfo=None)
             if is_today and start < now:
-                return "La hora fija asignada a este evento ya pasó el día de hoy."
+                return (
+                    "La hora fija asignada a este evento ya pasó el día de hoy.",
+                    "Edita la tarea y ajusta la hora de inicio a una hora futura."
+                )
 
         possible_slots = self._get_possible_slots(task)
 
         if not possible_slots:
             if is_today:
                 now_hour = now.hour
-                if task.preferred_time_of_day == "Mañana" and now_hour >= 12:
-                    return "El lapso de la 'Mañana' ya terminó hoy. Elige 'Tarde', 'Noche' o 'Cualquier'."
-                if task.preferred_time_of_day == "Tarde" and now_hour >= 18:
-                    return "El lapso de la 'Tarde' ya terminó hoy. Elige 'Noche' o 'Cualquier'."
                 if now >= self.day_end:
-                    return "Tu jornada laboral configurada para hoy ya ha finalizado."
+                    return (
+                        "Tu jornada laboral configurada para hoy ya ha finalizado.",
+                        "Ve a tu Perfil para ampliar tu horario laboral o mueve la fecha límite de la tarea para mañana."
+                    )
+                if task.preferred_time_of_day == "Mañana" and now_hour >= 12:
+                    return (
+                        "El lapso de la 'Mañana' ya terminó para el día de hoy.",
+                        "Edita el Momento Ideal a 'Tarde', 'Noche' o 'Cualquier' para aprovechar el resto del día."
+                    )
+                if task.preferred_time_of_day == "Tarde" and now_hour >= 18:
+                    return (
+                        "El lapso de la 'Tarde' ya terminó para el día de hoy.",
+                        "Cambia el Momento Ideal a 'Noche' o 'Cualquier', o amplía la fecha límite para mañana."
+                    )
 
             if task.deadline:
                 return (
-                    "El plazo límite (deadline) de esta tarea, combinado con tu "
-                    "horario preferido o el tiempo restante disponible, no deja ninguna franja."
+                    f"El plazo límite fijado no deja suficiente espacio continuo para sus {task.duration_minutes} min.",
+                    "Edita la tarea para ampliar su fecha límite (ej. para mañana) o reduce su duración a menos minutos."
                 )
             if task.preferred_time_of_day and task.preferred_time_of_day != "Cualquier":
                 return (
-                    f"Tu preferencia de horario '{task.preferred_time_of_day}' "
-                    "no coincide con las horas que quedan disponibles en tu jornada laboral."
+                    f"Tu preferencia '{task.preferred_time_of_day}' no cuenta con {task.duration_minutes} min libres continuos en tu jornada.",
+                    "Cambia el Momento Ideal a 'Cualquier' para que la IA aproveche cualquier hueco libre del día."
                 )
-            return "No quedan franjas horarias disponibles dentro de tu jornada laboral restante para hoy."
+            return (
+                f"No quedan franjas horarias disponibles de {task.duration_minutes} min dentro de tu jornada laboral.",
+                "Reduce la duración de la tarea (ej. a 15 o 30 min) o amplía tu horario en tu Perfil."
+            )
 
         return (
-            "Tu día ya está lleno con otras tareas de mayor prioridad o eventos externos. "
-            "No quedó espacio disponible para esta tarea."
+            "Tu día ya está saturado con otras tareas de mayor prioridad o eventos externos.",
+            "Aumenta la prioridad de esta tarea si es urgente, o amplía su fecha límite para que se agende mañana."
         )
     def _backtrack(self, task_index, current_schedule):
         if task_index == len(self.tasks):
