@@ -122,28 +122,46 @@ def get_kpi_dashboard(
 
 @router.get("/balance")
 def get_balance_stats(
+    period: str = "day",  # "day", "week", "month"
     db: Session = Depends(get_db),
     current_user: models.User = Depends(deps.get_current_user)
 ):
     """
-    Retorna el balance Ocio/Productividad de la semana actual.
-    Agrupa los minutos de time_blocks completados o agendados por categoría de tarea.
+    Retorna el balance Ocio/Productividad según el período solicitado:
+    - day: día de hoy (desde las 00:00 hasta las 23:59 de hoy)
+    - week: semana actual (desde el lunes 00:00 hasta el domingo 23:59)
+    - month: mes actual (desde el día 1 00:00 hasta fin de mes 23:59)
     """
     user_id = current_user.id
+    now = datetime.now()
 
-    # Semana actual: desde el lunes hasta hoy
-    today = datetime.utcnow()
-    week_start = today - timedelta(days=today.weekday())
-    week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+    if period == "day":
+        period_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        period_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        label_periodo = "Hoy"
+        label_prep = "hoy"
+    elif period == "month":
+        period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        next_month = (period_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        period_end = next_month - timedelta(microseconds=1)
+        label_periodo = "Este mes"
+        label_prep = "este mes"
+    else:  # "week"
+        period = "week"
+        week_start = now - timedelta(days=now.weekday())
+        period_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        period_end = period_start + timedelta(days=6, hours=23, minutes=59, seconds=59, microseconds=999999)
+        label_periodo = "Esta semana"
+        label_prep = "esta semana"
 
-    # JOIN time_blocks → tasks, filtrando por la semana actual
+    # JOIN time_blocks → tasks, filtrando por el período seleccionado
     blocks = (
         db.query(models.TimeBlock, models.Task)
         .join(models.Task, models.TimeBlock.task_id == models.Task.id)
         .filter(
             models.TimeBlock.user_id == user_id,
-            models.TimeBlock.start_time >= week_start,
-            models.TimeBlock.start_time <= today,
+            models.TimeBlock.start_time >= period_start,
+            models.TimeBlock.start_time <= period_end,
         )
         .all()
     )
@@ -175,35 +193,39 @@ def get_balance_stats(
 
     # ── Generar mensaje de recomendación ────────────────────────────────
     if total_minutos == 0:
-        mensaje = "Aún no tienes actividades completadas esta semana. ¡Genera tu agenda y comienza!"
+        mensaje = f"Aún no tienes actividades agendadas para {label_prep}. ¡Genera tu agenda y comienza!"
         estado = "sin_datos"
     elif pct_productividad >= 85:
         mensaje = (
-            f"Esta semana dedicaste {pct_productividad:.0f}% a Trabajo/Estudio y solo "
+            f"{label_periodo} dedicaste {pct_productividad:.0f}% a Trabajo/Estudio y solo "
             f"{pct_ocio:.0f}% a Ocio. Considera agendar más tiempo de descanso para evitar el agotamiento."
         )
         estado = "desequilibrio_productividad"
     elif pct_ocio >= 50:
         mensaje = (
-            f"Esta semana dedicaste {pct_ocio:.0f}% a Ocio. "
+            f"{label_periodo} dedicaste {pct_ocio:.0f}% a Ocio. "
             f"¿Hay tareas pendientes importantes que puedas priorizar?"
         )
         estado = "desequilibrio_ocio"
     elif 60 <= pct_productividad <= 80 and pct_ocio >= 10:
         mensaje = (
-            f"¡Buen balance esta semana! {pct_productividad:.0f}% productivo y "
+            f"¡Buen balance {label_prep}! {pct_productividad:.0f}% productivo y "
             f"{pct_ocio:.0f}% de descanso. Sigue así."
         )
         estado = "equilibrado"
     else:
         mensaje = (
-            f"Esta semana: {pct_productividad:.0f}% en Trabajo/Estudio, "
+            f"{label_periodo}: {pct_productividad:.0f}% en Trabajo/Estudio, "
             f"{pct_bienestar:.0f}% en Salud/Hogar y {pct_ocio:.0f}% en Ocio."
         )
         estado = "neutral"
 
     return {
-        "semana_inicio": week_start.strftime("%Y-%m-%d"),
+        "periodo": period,
+        "label_periodo": label_periodo,
+        "label_prep": label_prep,
+        "fecha_inicio": period_start.strftime("%Y-%m-%d"),
+        "fecha_fin": period_end.strftime("%Y-%m-%d"),
         "total_minutos_agendados": total_minutos,
         "total_horas_agendadas": round(total_minutos / 60, 1),
         "por_categoria": [
