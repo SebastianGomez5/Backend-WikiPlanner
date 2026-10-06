@@ -1,9 +1,24 @@
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from app.core.config import settings
 
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
+
+ZONA_COLOMBIA = timezone(timedelta(hours=-5))   # Colombia: UTC-5 fijo, sin horario de verano
+
+
+def _a_formato_google(dt: datetime) -> str:
+    """Las fechas sin zona horaria se interpretan como hora de Colombia."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZONA_COLOMBIA)
+    return dt.isoformat()
+
+
+def _a_hora_colombia(texto_google: str) -> datetime:
+    """Convierte una fecha de Google (con 'Z' u otro desfase) a hora de Colombia, sin zona."""
+    return (datetime.fromisoformat(texto_google.replace("Z", "+00:00"))
+            .astimezone(ZONA_COLOMBIA).replace(tzinfo=None))
 
 
 def get_access_token(refresh_token: str) -> str:
@@ -93,29 +108,15 @@ def delete_google_event(user, event_id: str):
 
 
 def get_calendar_events(user, start_date: datetime, end_date: datetime):
-    """
-    Obtiene TODOS los eventos del calendario del usuario en un rango de fechas,
-    incluyendo los creados externamente (por otras personas, invitaciones, u otras apps).
-    Filtra los eventos que la propia IA creó, para no duplicarlos.
-    """
     if not user.google_refresh_token:
         return []
 
     try:
         access_token = get_access_token(user.google_refresh_token)
 
-        # CORREGIDO — Manejamos correctamente fechas con y sin zona horaria
-        def to_google_format(dt):
-            if dt.tzinfo is not None:
-                # Ya trae zona horaria (ej. viene del frontend con "Z")
-                return dt.isoformat()
-            else:
-                # Fecha "naive" (sin zona), asumimos UTC y lo indicamos
-                return dt.isoformat() + "Z"
-
         params = {
-            "timeMin": to_google_format(start_date),
-            "timeMax": to_google_format(end_date),
+            "timeMin": _a_formato_google(start_date),
+            "timeMax": _a_formato_google(end_date),
             "singleEvents": True,
             "orderBy": "startTime",
         }
@@ -144,8 +145,8 @@ def get_calendar_events(user, start_date: datetime, end_date: datetime):
             if start and end:
                 external_events.append({
                     "title": event.get("summary", "Evento sin título"),
-                    "start": datetime.fromisoformat(start.replace("Z", "+00:00")).replace(tzinfo=None),
-                    "end": datetime.fromisoformat(end.replace("Z", "+00:00")).replace(tzinfo=None),
+                    "start": _a_hora_colombia(start),
+                    "end": _a_hora_colombia(end),
                 })
 
         return external_events
