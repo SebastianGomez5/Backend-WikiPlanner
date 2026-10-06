@@ -82,12 +82,11 @@ def get_kpi_dashboard(
             sum(b.ai_confidence for b in blocks_with_confidence) / len(blocks_with_confidence), 2
         )
 
-    # ── KPI 6: Tasa de rechazo repetido ──────────────────────────────────
-    # Mide si la IA sigue cometiendo el mismo error (sugerir horas ya rechazadas)
+
     rejected = [d for d in all_decisions if d.is_accepted is False]
     repeated_rejections = 0
 
-    seen_patterns = {}  # {(task_id, hora): count}
+    seen_patterns = {}  
     for d in rejected:
         ctx = d.conflict_context or {}
         task_id = ctx.get("task_id")
@@ -154,7 +153,7 @@ def get_balance_stats(
         label_periodo = "Esta semana"
         label_prep = "esta semana"
 
-    # JOIN time_blocks → tasks, filtrando por el período seleccionado
+    
     blocks = (
         db.query(models.TimeBlock, models.Task)
         .join(models.Task, models.TimeBlock.task_id == models.Task.id)
@@ -166,7 +165,7 @@ def get_balance_stats(
         .all()
     )
 
-    # Acumular minutos por categoría
+    
     CATEGORIAS = ["Trabajo", "Estudio", "Salud", "Hogar", "Ocio"]
     minutos_por_categoria = {cat: 0 for cat in CATEGORIAS}
 
@@ -177,12 +176,15 @@ def get_balance_stats(
 
     total_minutos = sum(minutos_por_categoria.values())
 
-    # Calcular porcentajes
+    
     porcentajes = {}
     for cat, mins in minutos_por_categoria.items():
         porcentajes[cat] = round((mins / total_minutos * 100), 1) if total_minutos > 0 else 0
 
-    # ── Clasificar en Productividad vs Ocio ─────────────────────────────
+    
+    PRODUCTIVIDAD = ["Trabajo", "Estudio"]
+    BIENESTAR     = ["Salud", "Hogar"]
+    OCIO_CATS     = ["Ocio"]
     PRODUCTIVIDAD = ["Trabajo", "Estudio"]
     BIENESTAR     = ["Salud", "Hogar"]
     OCIO_CATS     = ["Ocio"]
@@ -191,7 +193,6 @@ def get_balance_stats(
     pct_bienestar     = sum(porcentajes[c] for c in BIENESTAR)
     pct_ocio          = sum(porcentajes[c] for c in OCIO_CATS)
 
-    # ── Generar mensaje de recomendación ────────────────────────────────
     if total_minutos == 0:
         mensaje = f"Aún no tienes actividades agendadas para {label_prep}. ¡Genera tu agenda y comienza!"
         estado = "sin_datos"
@@ -244,4 +245,4 @@ def get_balance_stats(
         },
         "mensaje": mensaje,
         "estado": estado,   # sin_datos | equilibrado | desequilibrio_productividad | desequilibrio_ocio | neutral
-    }
+    }

@@ -64,7 +64,7 @@ def google_callback(code: str, state: str, db: Session = Depends(get_db)):
             myaccount.google.com/permissions</a> e intenta de nuevo.</p>
         """)
 
-    # NUEVO — Consultamos el email de la cuenta de Google recién conectada
+    
     google_email = None
     access_token = token_data.get("access_token")
     if access_token:

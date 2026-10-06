@@ -8,7 +8,6 @@ from uuid import UUID
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def create_user(db: Session, user: user_schema.UserCreate):
-    #Encriptamos la contraseña antes de tocar la base de datos
     hashed_password = pwd_context.hash(user.password)
     
     db_user = models.User(

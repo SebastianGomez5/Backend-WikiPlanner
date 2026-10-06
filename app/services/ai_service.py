@@ -14,7 +14,6 @@ def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
     if not settings:
         raise ValueError("El usuario no tiene preferencias configuradas. Por favor, configúralas primero.")
 
-    # NUEVO — Obtenemos el objeto User completo para acceder a su refresh_token
     current_user = db.query(models.User).filter(models.User.id == user_id).first()
 
     start_of_day = datetime.combine(target_date, time.min)
