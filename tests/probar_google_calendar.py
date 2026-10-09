@@ -24,11 +24,18 @@ IMPORTANTE:
 """
 import argparse
 import csv
+from pathlib import Path
 import statistics
 import sys
 import time
 import uuid
 from datetime import date, datetime, time as dtime, timedelta, timezone
+
+# Asegurar que la raíz del backend esté en sys.path
+BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 # ----------------------------------------------------------------------
 # CONFIGURACIÓN
@@ -332,7 +339,12 @@ def imprimir(resumen):
               "en google_calendar_service.py.")
 
 
-def guardar_csv(registro, ruta="probar_google_calendar_resultados.csv"):
+def guardar_csv(registro, ruta=None):
+    if ruta is None:
+        resultados_dir = BASE_DIR / "resultados"
+        resultados_dir.mkdir(parents=True, exist_ok=True)
+        ruta = resultados_dir / "probar_google_calendar_resultados.csv"
+
     with open(ruta, "w", newline="", encoding="utf-8") as archivo:
         w = csv.writer(archivo)
         w.writerow(["operacion", "repeticion", "exito", "latencia_s", "detalle"])

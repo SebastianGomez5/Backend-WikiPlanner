@@ -11,6 +11,7 @@ CSPSolver real con tareas sintéticas y mide solo el tiempo del motor.
 """
 import csv
 import os
+from pathlib import Path
 import platform
 import random
 import statistics
@@ -19,6 +20,12 @@ import time
 import uuid
 from datetime import date, datetime, time as dtime, timedelta
 from types import SimpleNamespace
+
+# Asegurar que la raíz del backend esté en sys.path
+BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from app.ai_engine.csp_solver import CSPSolver
 
@@ -152,7 +159,11 @@ def main():
     rng = random.Random(0)
     CSPSolver(crear_tareas(rng, 10, [30], FECHA_OBJETIVO), ajustes, FECHA_OBJETIVO, [], eventos).solve()
 
-    archivo = open("benchmark_csp_resultados.csv", "w", newline="", encoding="utf-8")
+    resultados_dir = BASE_DIR / "resultados"
+    resultados_dir.mkdir(parents=True, exist_ok=True)
+    ruta_csv = resultados_dir / "benchmark_csp_resultados.csv"
+
+    archivo = open(ruta_csv, "w", newline="", encoding="utf-8")
     registro = csv.writer(archivo)
     registro.writerow(["escenario", "n_tareas", "repeticion", "segundos", "tareas_agendadas", "agenda_valida"])
 
@@ -182,7 +193,7 @@ def main():
     media_20 = resumen[("holgado", 20)]
     veredicto = "CUMPLE" if media_20 < 5 else "NO CUMPLE"
     print(f"Indicador del marco lógico (n = 20, escenario holgado): media = {media_20:.4f} s -> {veredicto} (< 5 s)")
-    print("Registro de cada ejecución guardado en: benchmark_csp_resultados.csv")
+    print(f"Registro de cada ejecución guardado en: {ruta_csv}")
 
 
 if __name__ == "__main__":

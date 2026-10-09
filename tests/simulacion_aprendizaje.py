@@ -14,11 +14,19 @@ Los resultados son deterministas (semillas fijas): al repetir la ejecución
 se obtienen los mismos números.
 """
 import csv
+from pathlib import Path
 import random
 import statistics
+import sys
 import uuid
 from datetime import date, datetime, time as dtime, timedelta
 from types import SimpleNamespace
+
+# Asegurar que la raíz del backend esté en sys.path
+BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from app.ai_engine.csp_solver import CSPSolver
 from app.ai_engine.learning import build_user_penalty_profile, get_franja
@@ -167,12 +175,16 @@ def parte_b():
         print(f"  {etiqueta:<16} aceptación días 1-3: {ini:5.1f} %  |  días {DIAS - 2}-{DIAS}: {fin:5.1f} %  |  "
               f"rechazos totales: {total_rech:5.1f}  |  rechazos repetidos: {pct_rep:4.1f} %")
 
-    with open("simulacion_aprendizaje_resultados.csv", "w", newline="", encoding="utf-8") as f:
+    resultados_dir = BASE_DIR / "resultados"
+    resultados_dir.mkdir(parents=True, exist_ok=True)
+    ruta_csv = resultados_dir / "simulacion_aprendizaje_resultados.csv"
+
+    with open(ruta_csv, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["dia", "aceptacion_con_aprendizaje", "aceptacion_sin_aprendizaje"])
         for d, con, sin in filas_dia:
             w.writerow([d, f"{con:.2f}", f"{sin:.2f}"])
-    print("\nTabla por día guardada en: simulacion_aprendizaje_resultados.csv")
+    print(f"\nTabla por día guardada en: {ruta_csv}")
 
     try:
         import matplotlib
@@ -189,8 +201,9 @@ def parte_b():
         plt.grid(alpha=0.3)
         plt.legend()
         plt.tight_layout()
-        plt.savefig("simulacion_aprendizaje.png", dpi=200)
-        print("Gráfica guardada en: simulacion_aprendizaje.png")
+        ruta_png = resultados_dir / "simulacion_aprendizaje.png"
+        plt.savefig(ruta_png, dpi=200)
+        print(f"Gráfica guardada en: {ruta_png}")
     except ImportError:
         print("(Para generar la gráfica instala matplotlib: pip install matplotlib)")
 
